@@ -47,6 +47,7 @@
 #include "ParentProcessController.h"
 #include "nsThreadUtils.h"
 #include "HwcComposer2D.h"
+#include "HwcUtils.h"
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk" , ## args)
 #define LOGW(args...) __android_log_print(ANDROID_LOG_WARN, "Gonk", ## args)
@@ -175,9 +176,6 @@ nsWindow::nsWindow()
         gfxPlatform::GetPlatform();
         sUsingOMTC = ShouldUseOffMainThreadCompositing();
 
-        property_get("ro.display.colorfill", propValue, "0");
-        sUsingHwc = Preferences::GetBool("layers.composer2d.enabled",
-                                         atoi(propValue) == 1);
 
         if (sUsingOMTC) {
           sOMTCSurface = new gfxImageSurface(gfxIntSize(1, 1),
@@ -683,12 +681,19 @@ nsWindow::NeedsPaint()
 Composer2D*
 nsWindow::GetComposer2D()
 {
-    if (!sUsingHwc) {
-        return nullptr;
-    }
 
     if (HwcComposer2D* hwc = HwcComposer2D::GetInstance()) {
-        return hwc->Initialized() ? hwc : nullptr;
+	HwcDevice*              mHwc;
+
+	mHwc = (HwcDevice*)GetGonkDisplay()->GetHWCDevice();
+        int supported = 0;
+    if (mHwc->query(mHwc, HwcUtils::HWC_COLOR_FILL, &supported) == 0) {
+        sUsingHwc = supported ? true : false;
+
+        if(sUsingHwc) {
+           return hwc->Initialized() ? hwc : nullptr;
+        }
+    }
     }
 
     return nullptr;
